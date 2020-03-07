@@ -20,6 +20,7 @@ try:
   BACKENDS.append('librosa')
 except ImportError:
   pass
+BACKENDS.append('wav2vec')
 
 WINDOWS_FNS = {"hanning": np.hanning, "hamming": np.hamming, "none": None}
 
@@ -57,9 +58,13 @@ def load_features(path, data_format):
     data = np.load(path + '.npz')
     features = data['features']
     duration = data['duration']
+  elif data_format == 'wav2vec':
+    with h5py.File(path + '.h5context', "r") as hf5_file:
+      features = hf5_file["features"].value.reshape(-1,int(hf5_file['info'][2])) # info[2] = number of features, should be 512
+      duration = hf5_file['info'][1] * (1/hf5_file['info'][0]) #info[1]: number of steps, info[0] samples per second
   else:
     raise ValueError("Invalid data format for caching: ", data_format, "!\n",
-                     "options: hdf5, npy, npz")
+                     "options: hdf5, npy, npz, wav2vec")
   return features, duration
 
 
@@ -185,10 +190,14 @@ def get_speech_features_from_file(filename, params):
                                        data_format=cache_format)
 
   except PreprocessOnTheFlyException:
+    if cache_format == 'wav2vec':
+      raise BaseException("Cannot read from wave-file with wav2vec, need to have the context-vectors in cache-folder before training")
     sample_freq, signal = wave.read(filename)
     features, duration = get_speech_features(signal, sample_freq, params)
 
   except (OSError, FileNotFoundError, RegenerateCacheException):
+    if cache_format == 'wav2vec':
+      raise BaseException("Cannot read from wave-file with wav2vec, need to have the context-vectors in cache-folder before training")
     sample_freq, signal = wave.read(filename)
     features, duration = get_speech_features(signal, sample_freq, params)
 
@@ -298,6 +307,8 @@ def get_speech_features(signal, sample_freq, params):
         dither=dither, norm_per_feature=norm_per_feature, num_fft=num_fft,
         mel_basis=mel_basis
     )
+  elif backend == 'wav2vec':
+    raise BaseException("Should not try to read wav2vec backend from as stream, wav2vec features should be already in cached directory")
   else:
     pad_to = params.get('pad_to', 8)
     features, duration = get_speech_features_psf(

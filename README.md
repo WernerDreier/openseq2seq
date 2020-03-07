@@ -5,6 +5,10 @@
   <br>
 </div>
 
+# Forked OpenSeq2Seq
+
+Adopting for usage of wav2vec features produced by fairseq-library
+
 # OpenSeq2Seq: toolkit for distributed and mixed precision training of sequence-to-sequence models
 
 OpenSeq2Seq main goal is to allow researchers to most effectively explore various

@@ -28,7 +28,7 @@ class Speech2TextDataLayer(DataLayer):
   def get_required_params():
     return dict(DataLayer.get_required_params(), **{
         'num_audio_features': int,
-        'input_type': ['spectrogram', 'mfcc', 'logfbank'],
+        'input_type': ['spectrogram', 'mfcc', 'logfbank','wav2vec'],
         'vocab_file': str,
         'dataset_files': list,
     })
@@ -36,7 +36,7 @@ class Speech2TextDataLayer(DataLayer):
   @staticmethod
   def get_optional_params():
     return dict(DataLayer.get_optional_params(), **{
-        'backend': ['psf', 'librosa'],
+        'backend': ['psf', 'librosa','wav2vec'],
         'augmentation': dict,
         'pad_to': int,
         'max_duration': float,
@@ -62,7 +62,7 @@ class Speech2TextDataLayer(DataLayer):
     * **backend** (str) --- audio pre-processing backend
       ('psf' [default] or librosa [recommended]).
     * **num_audio_features** (int) --- number of audio features to extract.
-    * **input_type** (str) --- could be either "spectrogram" or "mfcc".
+    * **input_type** (str) --- could be either "spectrogram","mfcc", "logfbank" or "wav2vec".
     * **vocab_file** (str) --- path to vocabulary file or sentencepiece model.
     * **dataset_files** (list) --- list with paths to all dataset .csv files.
     * **augmentation** (dict) --- optional dictionary with data augmentation
