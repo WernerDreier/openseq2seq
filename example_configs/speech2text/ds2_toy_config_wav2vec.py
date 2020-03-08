@@ -18,17 +18,17 @@ base_params = {
   "random_seed": 0,
   "use_horovod": False,
   #"num_epochs":  200,
-  "max_steps": 1000,
+  "max_steps": 110,
 
-  "num_gpus": 2,
+  "num_gpus": 1,
   "batch_size_per_gpu": 8,
 
   "save_summaries_steps": 100,
   "print_loss_steps": 100,
   "print_samples_steps": 100,
-  "eval_steps": 500,
-  "save_checkpoint_steps": 500,
-  "logdir": "ds2_log/toy",
+  "eval_steps": 100,
+  "save_checkpoint_steps": 100,
+  "logdir": "ds2_wav2vec_log/toy",
 
   "optimizer": "Momentum",
   "optimizer_params": {
@@ -106,6 +106,8 @@ base_params = {
 train_params = {
   "data_layer": Speech2TextDataLayer,
   "data_layer_params": {
+    "cache_regenerate": False,
+    "cache_format": "wav2vec",
     "num_audio_features": 512, #irrelevant but corrected
     "input_type": "wav2vec", #irrelevant but corrected
     "vocab_file": "open_seq2seq/test_utils/toy_speech_data/vocab.txt",
