@@ -129,7 +129,7 @@ def get_preprocessed_data_path(filename, params):
     return text
 
   if (cache_format=='wav2vec'):
-    preprocessed_dir = os.path.dirname(filename).replace("wav","preprocessed-wav2vec")
+    preprocessed_dir = os.path.dirname(filename).replace("wav","wav2vec")
   else:
     # generate the identifier by simply concatenating preprocessing key-value
     # pairs as strings.

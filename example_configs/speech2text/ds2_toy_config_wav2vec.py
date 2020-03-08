@@ -106,6 +106,7 @@ base_params = {
 train_params = {
   "data_layer": Speech2TextDataLayer,
   "data_layer_params": {
+    "cache_features": False,
     "cache_regenerate": False,
     "cache_format": "wav2vec",
     "num_audio_features": 512, #irrelevant but corrected
