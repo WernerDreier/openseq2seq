@@ -143,6 +143,7 @@ def get_preprocessed_data_path(filename, params):
   # create dir if it doesn't exist yet
   if not os.path.exists(preprocessed_dir):
     os.makedirs(preprocessed_dir)
+    print("Created chaching directory {}".format(preprocessed_dir))
 
   return preprocessed_path
 
