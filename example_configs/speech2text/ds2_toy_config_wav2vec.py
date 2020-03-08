@@ -110,9 +110,9 @@ train_params = {
     "cache_format": "wav2vec",
     "num_audio_features": 512, #irrelevant but corrected
     "input_type": "wav2vec", #irrelevant but corrected
-    "vocab_file": "open_seq2seq/test_utils/toy_speech_data/vocab.txt",
+    "vocab_file": "open_seq2seq/test_utils/toy_wav2vec_speech_data/vocab.txt",
     "dataset_files": [
-      "open_seq2seq/test_utils/toy_speech_data/toy_data.csv",
+      "open_seq2seq/test_utils/toy_wav2vec_speech_data/toy_data.csv",
     ],
     "shuffle": True,
   },
@@ -123,9 +123,9 @@ eval_params = {
   "data_layer_params": {
     "num_audio_features": 160,
     "input_type": "spectrogram",
-    "vocab_file": "open_seq2seq/test_utils/toy_speech_data/vocab.txt",
+    "vocab_file": "open_seq2seq/test_utils/toy_wav2vec_speech_data/vocab.txt",
     "dataset_files": [
-      "open_seq2seq/test_utils/toy_speech_data/toy_data.csv",
+      "open_seq2seq/test_utils/toy_wav2vec_speech_data/toy_data.csv",
     ],
     "shuffle": False,
   },
@@ -136,9 +136,9 @@ infer_params = {
   "data_layer_params": {
     "num_audio_features": 160,
     "input_type": "spectrogram",
-    "vocab_file": "open_seq2seq/test_utils/toy_speech_data/vocab.txt",
+    "vocab_file": "open_seq2seq/test_utils/toy_wav2vec_speech_data/vocab.txt",
     "dataset_files": [
-      "open_seq2seq/test_utils/toy_speech_data/toy_data.csv",
+      "open_seq2seq/test_utils/toy_wav2vec_speech_data/toy_data.csv",
     ],
     "shuffle": False,
   },
