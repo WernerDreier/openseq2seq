@@ -10,10 +10,6 @@ from open_seq2seq.optimizers.lr_policies import poly_decay
 
 base_model = Speech2Text
 
-### PREPROCESSING CACHING CONFIG ###
-cache_format = 'wav2vec'
-cache_regenerate = False
-
 base_params = {
   "random_seed": 0,
   "use_horovod": False,
@@ -106,7 +102,7 @@ base_params = {
 train_params = {
   "data_layer": Speech2TextDataLayer,
   "data_layer_params": {
-    "cache_features": False,
+    "cache_features": True,
     "cache_regenerate": False,
     "cache_format": "wav2vec",
     "num_audio_features": 512, #irrelevant but corrected
