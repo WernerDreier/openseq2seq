@@ -108,6 +108,7 @@ def get_preprocessed_data_path(filename, params):
 
   filename = os.path.realpath(filename)  # decode symbolic links
 
+  cache_format = params.get('cache_format', 'hdf5')
   ## filter relevant parameters # TODO is there a cleaner way of doing this?
   # print(list(params.keys()))
   ignored_params = ["cache_features", "cache_format", "cache_regenerate",
@@ -127,15 +128,17 @@ def get_preprocessed_data_path(filename, params):
       .replace("add_second_derivatives", "dd")
     return text
 
-  # generate the identifier by simply concatenating preprocessing key-value
-  # pairs as strings.
-  preprocess_id = "-".join(
-      [fix_kv(k) + "_" + fix_kv(v) for k, v in params.items() if
-       k not in ignored_params])
+  if (cache_format=='wav2vec'):
+    preprocessed_dir = os.path.dirname(filename).replace("wav","preprocessed-wav2vec")
+  else:
+    # generate the identifier by simply concatenating preprocessing key-value
+    # pairs as strings.
+    preprocess_id = "-".join(
+        [fix_kv(k) + "_" + fix_kv(v) for k, v in params.items() if
+         k not in ignored_params])
 
-  preprocessed_dir = os.path.dirname(filename).replace("wav",
-                                                       "preprocessed-" +
-                                                       preprocess_id)
+    preprocessed_dir = os.path.dirname(filename).replace("wav","preprocessed-" + preprocess_id)
+
   preprocessed_path = os.path.join(preprocessed_dir,
                                    os.path.basename(filename).replace(".wav",
                                                                       ""))
@@ -181,7 +184,7 @@ def get_speech_features_from_file(filename, params):
   try:
     if not cache_features:
       raise PreprocessOnTheFlyException(
-          "on-the-fly preprocessing enforced with 'cache_features'==True")
+          "on-the-fly preprocessing enforced with 'cache_features'==False")
 
     if cache_regenerate:
       raise RegenerateCacheException("regenerating cache...")
