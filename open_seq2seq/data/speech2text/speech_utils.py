@@ -203,7 +203,7 @@ def get_speech_features_from_file(filename, params):
     if cache_format == 'wav2vec':
       import sys
       raise type(e)(type(e)(
-          e.message + ' Cannot proceed with reading from wave-file with as cache_format is wav2vec.  Need to have the context-vectors in cache-folder before training')).with_traceback(
+          e.msg + ' Cannot proceed with reading from wave-file with as cache_format is wav2vec.  Need to have the context-vectors in cache-folder before training')).with_traceback(
           sys.exc_info()[2])
     sample_freq, signal = wave.read(filename)
     features, duration = get_speech_features(signal, sample_freq, params)
