@@ -53,6 +53,9 @@ class Speech2TextDataLayer(DataLayer):
         'num_fft': int,
         'precompute_mel_basis': bool,
         'sample_freq': int,
+        'gain': float,
+        'features_mean': np.ndarray,
+        'features_std_dev': np.ndarray,
     })
 
   def __init__(self, params, model, num_workers, worker_id):
@@ -105,6 +108,7 @@ class Speech2TextDataLayer(DataLayer):
     """
     super(Speech2TextDataLayer, self).__init__(params, model,
                                                num_workers, worker_id)
+ 
     self.params['autoregressive'] = self.params.get('autoregressive', False)
     self.autoregressive = self.params['autoregressive']
     self.params['bpe'] = self.params.get('bpe', False)
@@ -158,6 +162,7 @@ class Speech2TextDataLayer(DataLayer):
     self.params['max_duration'] = self.params.get('max_duration', -1.0)
     self.params['window_size'] = self.params.get('window_size', 20e-3)
     self.params['window_stride'] = self.params.get('window_stride', 10e-3)
+    self.params['sample_freq'] = self.params.get('sample_freq', 16000)
 
     mel_basis = None
     if (self.params.get("precompute_mel_basis", False) and
@@ -165,17 +170,28 @@ class Speech2TextDataLayer(DataLayer):
       num_fft = (
           self.params.get("num_fft", None) or
           2**math.ceil(math.log2(
-              self.params['window_size']*self.params["sample_freq"])
+              self.params['window_size']*self.params['sample_freq'])
           )
       )
       mel_basis = librosa.filters.mel(
-          self.params["sample_freq"],
+          self.params['sample_freq'],
           num_fft,
-          n_mels=self.params["num_audio_features"],
+          n_mels=self.params['num_audio_features'],
           fmin=0,
-          fmax=int(self.params["sample_freq"]/2)
+          fmax=int(self.params['sample_freq']/2)
       )
     self.params['mel_basis'] = mel_basis
+
+    if 'n_freq_mask' in self.params.get('augmentation', {}):
+      width_freq_mask = self.params['augmentation'].get('width_freq_mask', 10)
+      if width_freq_mask > self.params['num_audio_features']:
+        raise ValueError(
+            "'width_freq_mask'={} should be smaller ".format(width_freq_mask)+
+            "than 'num_audio_features'={}".format(
+               self.params['num_audio_features']
+            )
+        )
+
 
     if 'time_stretch_ratio' in self.params.get('augmentation', {}):
       print("WARNING: Please update time_stretch_ratio to speed_perturbation_ratio")
@@ -356,6 +372,9 @@ class Speech2TextDataLayer(DataLayer):
       audio_length_arr.append(audio_length)
       x_id_arr.append(x_id)
     max_len = np.max(audio_length_arr)
+    pad_to = self.params.get("pad_to", 8)
+    if pad_to > 0 and self.params.get('backend') == 'librosa':
+      max_len += (pad_to - max_len % pad_to) % pad_to
     for i, audio in enumerate(audio_arr):
       audio = np.pad(
           audio, ((0, max_len-len(audio)), (0, 0)),
@@ -422,8 +441,9 @@ class Speech2TextDataLayer(DataLayer):
       sample id.
     """
     source, audio_duration = get_speech_features(
-        wav, 16000., params
+        wav, 16000., self.params
     )
+
     return source.astype(self.params['dtype'].as_numpy_dtype()), \
         np.int32([len(source)]), np.int32([0]), \
         np.float32([audio_duration])

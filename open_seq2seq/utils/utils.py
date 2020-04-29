@@ -168,7 +168,7 @@ def iterate_data(model, sess, compute_loss, mode, verbose, num_steps=None):
       else:
         inputs, outputs = fetches_val[:2]
 
-      if total_objects is not None:
+      if total_objects is not None and step >= bench_start:
         total_objects += np.sum(fetches_val[-1])
 
       # assuming any element of inputs["source_tensors"] .shape[0] is batch size
@@ -504,6 +504,8 @@ def get_base_config(args):
                       help='run TensorFlow in debug mode on specified port')
   parser.add_argument('--enable_logs', dest='enable_logs', action='store_true',
                       help='whether to log output, git info, cmd args, etc.')
+  parser.add_argument('--use_xla_jit', dest='use_xla_jit', action='store_true',
+                      help='whether to use XLA_JIT to compile and run the model.')
   args, unknown = parser.parse_known_args(args)
 
   if args.mode not in [
@@ -522,6 +524,8 @@ def get_base_config(args):
   if base_config is None:
     raise ValueError('base_config dictionary has to be '
                      'defined in the config file')
+  base_config['use_xla_jit'] = args.use_xla_jit or base_config.get('use_xla_jit', False)
+
   base_model = config_module.get('base_model', None)
   if base_model is None:
     raise ValueError('base_config class has to be defined in the config file')

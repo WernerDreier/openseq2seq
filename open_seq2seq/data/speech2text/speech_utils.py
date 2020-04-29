@@ -197,6 +197,13 @@ def get_speech_features_from_file(filename, params):
     if cache_format == 'wav2vec':
       raise BaseException("Cannot read from wave-file with wav2vec, need to have the context-vectors in cache-folder before training")
     sample_freq, signal = wave.read(filename)
+    # check sample rate
+    if sample_freq != params['sample_freq']:
+      raise ValueError(
+          ("The sampling frequency set in params {} does not match the "
+           "frequency {} read from file {}").format(params['sample_freq'],
+                                                    sample_freq, filename)
+      )
     features, duration = get_speech_features(signal, sample_freq, params)
 
   except (OSError, FileNotFoundError, RegenerateCacheException) as e:
@@ -206,6 +213,13 @@ def get_speech_features_from_file(filename, params):
           e.msg + ' Cannot proceed with reading from wave-file with as cache_format is wav2vec.  Need to have the context-vectors in cache-folder before training')).with_traceback(
           sys.exc_info()[2])
     sample_freq, signal = wave.read(filename)
+    # check sample rate
+    if sample_freq != params['sample_freq']:
+      raise ValueError(
+          ("The sampling frequency set in params {} does not match the "
+           "frequency {} read from file {}").format(params['sample_freq'],
+                                                    sample_freq, filename)
+      )
     features, duration = get_speech_features(signal, sample_freq, params)
 
     preprocessed_data_path = get_preprocessed_data_path(filename, params)
@@ -215,18 +229,20 @@ def get_speech_features_from_file(filename, params):
   return features, duration
 
 
-def normalize_signal(signal):
+def normalize_signal(signal, gain=None):
   """
   Normalize float32 signal to [-1, 1] range
   """
-  return signal / (np.max(np.abs(signal)) + 1e-5)
+  if gain is None:
+    gain = 1.0 / (np.max(np.abs(signal)) + 1e-5)
+  return signal * gain
 
 
-def augment_audio_signal(signal, sample_freq, augmentation):
+def augment_audio_signal(signal_float, sample_freq, augmentation):
   """Function that performs audio signal augmentation.
 
   Args:
-    signal (np.array): np.array containing raw audio signal.
+    signal_float (np.array): np.array containing raw audio signal.
     sample_freq (float): frames per second.
     augmentation (dict, optional): None or dictionary of augmentation parameters.
         If not None, has to have 'speed_perturbation_ratio',
@@ -242,8 +258,6 @@ def augment_audio_signal(signal, sample_freq, augmentation):
   Returns:
     np.array: np.array with augmented audio signal.
   """
-  signal_float = normalize_signal(signal.astype(np.float32))
-
   if 'speed_perturbation_ratio' in augmentation:
     stretch_amount = -1
     if isinstance(augmentation['speed_perturbation_ratio'], list):
@@ -267,7 +281,7 @@ def augment_audio_signal(signal, sample_freq, augmentation):
     signal_float += np.random.randn(signal_float.shape[0]) * \
                     10.0 ** (noise_level_db / 20.0)
 
-  return normalize_signal(signal_float)
+  return signal_float
 
 
 def preemphasis(signal, coeff=0.97):
@@ -302,17 +316,14 @@ def get_speech_features(signal, sample_freq, params):
     num_fft = params.get('num_fft', None)
     norm_per_feature = params.get('norm_per_feature', False)
     mel_basis = params.get('mel_basis', None)
-    if mel_basis is not None and sample_freq != params["sample_freq"]:
-      raise ValueError(
-          ("The sampling frequency set in params {} does not match the "
-           "frequency {} read from file {}").format(params["sample_freq"],
-                                                    sample_freq, filename)
-      )
+    gain = params.get('gain')
+    mean = params.get('features_mean')
+    std_dev = params.get('features_std_dev')
     features, duration = get_speech_features_librosa(
         signal, sample_freq, num_features, features_type,
         window_size, window_stride, augmentation, window_fn=window_fn,
         dither=dither, norm_per_feature=norm_per_feature, num_fft=num_fft,
-        mel_basis=mel_basis
+        mel_basis=mel_basis, gain=gain, mean=mean, std_dev=std_dev
     )
   elif backend == 'wav2vec':
     raise BaseException("Should not try to read wav2vec backend from as stream, wav2vec features should be already in cached directory")
@@ -335,7 +346,10 @@ def get_speech_features_librosa(signal, sample_freq, num_features,
                                 num_fft=None,
                                 dither=0.0,
                                 norm_per_feature=False,
-                                mel_basis=None):
+                                mel_basis=None,
+                                gain=None,
+                                mean=None,
+                                std_dev=None):
   """Function to convert raw audio signal to numpy array of features.
   Backend: librosa
   Args:
@@ -355,10 +369,9 @@ def get_speech_features_librosa(signal, sample_freq, num_features,
     num_features].
     audio_duration (float): duration of the signal in seconds
   """
+  signal = normalize_signal(signal.astype(np.float32), gain)
   if augmentation:
-    signal = augment_audio_signal(signal.astype(np.float32), sample_freq, augmentation)
-  else:
-    signal = normalize_signal(signal.astype(np.float32))
+    signal = augment_audio_signal(signal, sample_freq, augmentation)
 
   audio_duration = len(signal) * 1.0 / sample_freq
 
@@ -409,13 +422,33 @@ def get_speech_features_librosa(signal, sample_freq, num_features,
       mel_basis = librosa.filters.mel(sample_freq, num_fft, n_mels=num_features,
                                       fmin=0, fmax=int(sample_freq/2))
     features = np.log(np.dot(mel_basis, S) + 1e-20).T
+
   else:
     raise ValueError('Unknown features type: {}'.format(features_type))
 
   norm_axis = 0 if norm_per_feature else None
-  mean = np.mean(features, axis=norm_axis)
-  std_dev = np.std(features, axis=norm_axis)
+  if mean is None:
+    mean = np.mean(features, axis=norm_axis)
+  if std_dev is None:
+    std_dev = np.std(features, axis=norm_axis)
+
   features = (features - mean) / std_dev
+
+  if augmentation:
+    n_freq_mask = augmentation.get('n_freq_mask', 0)
+    n_time_mask = augmentation.get('n_time_mask', 0)
+    width_freq_mask = augmentation.get('width_freq_mask', 10)
+    width_time_mask = augmentation.get('width_time_mask', 50)
+
+    for idx in range(n_freq_mask):
+      freq_band = np.random.randint(width_freq_mask + 1)
+      freq_base = np.random.randint(0, features.shape[1] - freq_band)
+      features[:, freq_base:freq_base+freq_band] = 0
+    for idx in range(n_time_mask):
+      time_band = np.random.randint(width_time_mask + 1)
+      if features.shape[0] - time_band > 0:
+        time_base = np.random.randint(features.shape[0] - time_band)
+        features[time_base:time_base+time_band, :] = 0
 
   # now it is safe to pad
   # if pad_to > 0:
@@ -453,10 +486,10 @@ def get_speech_features_psf(signal, sample_freq, num_features,
     audio_duration (float): duration of the signal in seconds
   """
   if augmentation is not None:
-    signal = augment_audio_signal(signal, sample_freq, augmentation)
-  else:
-    signal = (normalize_signal(signal.astype(np.float32)) * 32767.0).astype(
-        np.int16)
+    signal = augment_audio_signal(signal.astype(np.float32), 
+        sample_freq, augmentation)
+  signal = (normalize_signal(signal.astype(np.float32)) * 32767.0).astype(
+      np.int16)
 
   audio_duration = len(signal) * 1.0 / sample_freq
 

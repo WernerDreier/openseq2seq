@@ -11,7 +11,7 @@ The recommended way to install OpenSeq2Seq is to use NVIDIA TensorFlow Docker co
 1. Install CUDA 10 from https://developer.nvidia.com/cuda-downloads
 2. Install Docker ( see https://docs.docker.com/install/linux/docker-ce/ubuntu/#prerequisites )
 
-   use version compatible with nvidia-docker, e.g.::
+   use version compatible with `nvidia-docker <https://github.com/NVIDIA/nvidia-docker>`_, e.g.::
 
     sudo apt-get install docker-ce=5:18.09.1~3-0~ubuntu-xenial
 
@@ -34,11 +34,11 @@ The recommended way to install OpenSeq2Seq is to use NVIDIA TensorFlow Docker co
 
     see https://docs.nvidia.com/deeplearning/dgx/tensorflow-user-guide/index.html::
 
-    docker pull nvcr.io/nvidia/tensorflow:19.01-py3
+    docker pull nvcr.io/nvidia/tensorflow:19.05-py3
 
 7. Run contrainer::
 
-    nvidia-docker run --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 -it --rm nvcr.io/nvidia/tensorflow:18.12-py3
+    nvidia-docker run --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 -it --rm nvcr.io/nvidia/tensorflow:19.05-py3
 
 8. Pull OpenSeq2Seq from GitHub inside the container::
 
@@ -84,20 +84,21 @@ Installation of OpenSeq2Seq for speech recognition
 CTC-based speech recognition models can use the following decoders to get a transcription out of a model's state:
 
  * greedy decoder, the fastest, but might yield spelling errors (can be enabled with ``"use_language_model": False``)
- * beam search decoder with language model rescoring, the most accurate, but the slowest (can be enabled with ``"use_language_model": True``)
+ * beam search decoder with language model (LM) rescoring, the most accurate, but the slowest
 
-You can find more information about these decoders at :doc:`DeepSpeech 2 page </speech-recognition/deepspeech2>`.
+You can find more information about these decoders at :ref:`decoders-ref` section.
 
 CTC beam search decoder with language model rescoring is an optional component and might be used for speech recognition inference only.
 
-Since TensorFlow does not support it by default, you will need to build TensorFlow
-from sources with a custom CTC decoder operation. In order to do that, follow
-the steps below. Alternatively, you can disable language model by setting
-"use_language_model" parameter of decoder to False, but that will lead to a
-worse model accuracy.
+There are two implementations of CTC beam search decoder with LM rescoring in OpenSeq2Seq:
 
-How to install a CTC decoder with language model to TensorFlow (optional)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Baidu CTC decoder (the recommended). It can be installed with ``scripts/install_decoders.sh`` command. 
+   To test the installation please run ``python scripts/ctc_decoders_test.py``.
+
+ * Custom native TF op (rather deprecated). See installation instructions below.
+
+How to build a custom native TF op for CTC decoder with language model (optional)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 First of all, make sure that you installed CUDA >= 10.0, cuDNN >= 7.4, NCCL >= 2.3.
 
@@ -118,27 +119,28 @@ First of all, make sure that you installed CUDA >= 10.0, cuDNN >= 7.4, NCCL >= 2
         ln -s <kenlm location> kenlm
         cd ..
 
-3. Download and build the latest stable 1.x TensorFlow with custom decoder operation (make sure that you have Bazel >= 0.15)::
+3. Download and build the latest stable 1.x TensorFlow (make sure that you have Bazel >= 0.15)::
 
-        git clone https://github.com/tensorflow/tensorflow -b r1.13
+        git clone https://github.com/tensorflow/tensorflow -b r1.13.1
         cd tensorflow
         ./configure
-        ln -s <OpenSeq2Seq location>/ctc_decoder_with_lm ./
-        bazel build -c opt --copt=-mavx --copt=-mavx2 --copt=-mfma --copt=-mfpmath=both --copt=-msse4.2 --copt=-O3  --config=cuda //tensorflow/tools/pip_package:build_pip_package //tensorflow:libtensorflow_cc.so //tensorflow:libtensorflow_framework.so //ctc_decoder_with_lm:libctc_decoder_with_kenlm.so //ctc_decoder_with_lm:generate_trie
-        cp bazel-bin/ctc_decoder_with_lm/*.so ctc_decoder_with_lm/
-        cp bazel-bin/ctc_decoder_with_lm/generate_trie ctc_decoder_with_lm/
+        ln -s <OpenSeq2Seq location>/ctc_decoder_with_lm ./tensorflow/core/user_ops/
+        bazel build -c opt --copt=-mavx --copt=-mavx2 --copt=-mfma --copt=-mfpmath=both --copt=-msse4.2 --copt=-O3 --config=cuda //tensorflow/tools/pip_package:build_pip_package
         bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg
         pip install /tmp/tensorflow_pkg/<your tensorflow build>.whl
 
    Or you can always check the latest TensorFlow
-   `installation instructions <https://www.tensorflow.org/install/install_sources>`_,
-   except when running bazel build use the following commands instead
+   `installation instructions <https://www.tensorflow.org/install/install_sources>`_ for TensorFlow installation,
+   and then run the following commands in order to build the custom CTC decoder
    (assuming you are in tensorflow directory)::
 
-        ln -s <OpenSeq2Seq location>/ctc_decoder_with_lm ./
-        bazel build -c opt --copt=-mavx --copt=-mavx2 --copt=-mfma --copt=-mfpmath=both --copt=-msse4.2 --copt=-O3   --config=cuda //tensorflow/tools/pip_package:build_pip_package //tensorflow:libtensorflow_cc.so //tensorflow:libtensorflow_framework.so //ctc_decoder_with_lm:libctc_decoder_with_kenlm.so //ctc_decoder_with_lm:generate_trie
-        cp bazel-bin/ctc_decoder_with_lm/*.so ctc_decoder_with_lm/
-        cp bazel-bin/ctc_decoder_with_lm/generate_trie ctc_decoder_with_lm/
+        ln -s <OpenSeq2Seq location>/ctc_decoder_with_lm ./tensorflow/core/user_ops/
+        bazel build -c opt --copt=-mavx --copt=-mavx2 --copt=-mfma --copt=-mfpmath=both --copt=-msse4.2 --copt=-O3 //tensorflow/core/user_ops/ctc_decoder_with_lm:libctc_decoder_with_kenlm.so //tensorflow/core/user_ops/ctc_decoder_with_lm:generate_trie
+        cp bazel-bin/tensorflow/core/user_ops/ctc_decoder_with_lm/*.so tensorflow/core/user_ops/ctc_decoder_with_lm/
+        cp bazel-bin/tensorflow/core/user_ops/ctc_decoder_with_lm/generate_trie tensorflow/core/user_ops/ctc_decoder_with_lm/
+
+   Please add ``--cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0"`` to ``bazel build ...`` if you are using GCC 5 and later.
+
 
 4. Validate TensorFlow installation::
 
