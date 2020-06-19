@@ -11,7 +11,6 @@ import numpy.testing as npt
 import pandas as pd
 import tensorflow as tf
 from six.moves import range
-
 from open_seq2seq.utils import train, evaluate, infer
 from open_seq2seq.utils.utils import get_available_gpus
 from .speech2text import levenshtein
@@ -226,6 +225,16 @@ class Speech2TextModelTests(tf.test.TestCase):
           num_master_copies,  # exclude batch norm beta, gamma and row_conv vars
       )
 
+  def test_levenshtein_character_based(self):
+    original = "I wanted to meet you in the park"
+    predicted = "AI wanted to mit you in the prc" #Insertion (A) 1, change (i,c), deletion (e, a) -> totals 4
+    #Characterbased
+    self.assertEqual(levenshtein(original, predicted), 5, "Distance for characters should be 5")
+    self.assertEqual(levenshtein(predicted, original), 5, "Distance for characters should be 5")
+    #Word based
+    self.assertEqual(levenshtein(original.split(), predicted.split()), 3, "Distance for characters should be 3")
+    self.assertEqual(levenshtein(predicted.split(), original.split()), 3, "Distance for characters should be 3")
+
   def levenshtein_test(self):
     sample1 = 'this is a great day'
     sample2 = 'this is great day'
@@ -335,17 +344,24 @@ class Speech2TextModelTests(tf.test.TestCase):
 
     w_lev = 0.0
     w_len = 0.0
+    c_lev = 0.0
+    c_len = 0.0
     for batch_id in range(len(inputs)):
       for sample_id in range(len(inputs[batch_id])):
         input_sample = inputs[batch_id][sample_id]
         output_sample = outputs[batch_id][sample_id]
         w_lev += levenshtein(input_sample.split(), output_sample.split())
         w_len += len(input_sample.split())
+        c_lev += levenshtein(input_sample, output_sample)
+        c_len += len(input_sample)
 
     self.assertEqual(output_dict['Eval WER'], w_lev / w_len)
     self.assertEqual(output_dict['Eval WER'], 37 / 40.0)
+
+    self.assertEqual(output_dict['Eval CER'], c_lev / c_len)
 
     inp_dict = {'source_tensors': [input_values[0][0], input_values[0][1]],
                 'target_tensors': [input_values[0][2], input_values[0][3]]}
     output_dict = model.maybe_print_logs(inp_dict, output_values[0], 0)
     self.assertEqual(output_dict['Sample WER'], 0.4)
+    self.assertEqual(output_dict['Sample CER'], 4/19)
