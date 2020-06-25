@@ -11,15 +11,16 @@ import pprint
 import runpy
 import shutil
 import subprocess
-import sys
-import time
 
-
+import jiwer.transforms as tr
 import numpy as np
 import six
+import sys
+import tensorflow as tf
+import time
+from jiwer.measures import _preprocess, _get_operation_counts
 from six import string_types
 from six.moves import range
-import tensorflow as tf
 # pylint: disable=no-name-in-module
 from tensorflow.python.client import device_lib
 
@@ -261,7 +262,6 @@ def get_results_for_epoch(model, sess, compute_loss, mode, verbose=False):
     return results_per_batch, total_loss / total_samples
   else:
     return results_per_batch
-
 
 def log_summaries_from_dict(dict_to_log, output_dir, step):
   """
@@ -880,3 +880,17 @@ def create_model(args, base_config, config_module, base_model, hvd,
     model.compile(checkpoint=checkpoint)
 
   return model
+
+
+def _levenshtein_edit_counts(truth,hypothesis):
+
+  _default_transform = tr.Compose([tr.RemoveMultipleSpaces(), tr.Strip(), tr.SentencesToListOfWords(), tr.RemoveEmptyStrings(), ])
+
+  # Preprocess truth and hypothesis -> string to word level, see https://github.com/jitsi/jiwer/blob/master/jiwer/measures.py
+  word_level_truth, word_level_hypothesis = _preprocess(truth, hypothesis,  _default_transform , _default_transform  )
+
+  # Get the operation counts (#hits, #substitutions, #deletions, #insertions)
+  H,S,D,I = _get_operation_counts(word_level_truth, word_level_hypothesis)
+  count_words_truth = len(word_level_truth) if word_level_truth else 0
+  count_words_hypothesis = len(word_level_hypothesis) if word_level_hypothesis else 0
+  return H,S,D,I,count_words_truth, count_words_hypothesis

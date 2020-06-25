@@ -12,7 +12,7 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 from io import BytesIO
 
-from open_seq2seq.utils.utils import deco_print
+from open_seq2seq.utils.utils import deco_print, _levenshtein_edit_counts
 from .encoder_decoder import EncoderDecoderModel
 
 import pickle
@@ -250,6 +250,13 @@ class Speech2Text(EncoderDecoderModel):
     total_word_count = 0.0
     total_char_lev = 0.0
     total_char_count = 0.0
+    #WER / WIL / MER KPIs
+    total_hits = 0.0
+    total_subtitutions = 0.0
+    total_deletions = 0.0
+    total_insertions = 0.0
+    total_length_truth = 0.0
+    total_length_hypothesis = 0.0
 
     for kpiDictionary in results_per_batch:
       wordKpis = kpiDictionary["word"]
@@ -260,18 +267,44 @@ class Speech2Text(EncoderDecoderModel):
       total_char_lev += charKpis["total_char_lev"]
       total_char_count += charKpis["total_char_count"]
 
+      editKpis = kpiDictionary["edits"]
+      total_hits +=editKpis["total_hits"]
+      total_subtitutions +=editKpis["total_substitutions"]
+      total_deletions +=editKpis["total_deletions"]
+      total_insertions +=editKpis["total_insertions"]
+      total_length_truth +=editKpis["total_length_truth"]
+      total_length_hypothesis +=editKpis["total_length_hypothesis"]
+
+
     total_wer = 1.0 * total_word_lev / total_word_count
     total_cer = 1.0 * total_char_lev / total_char_count
+
+    total_kpi_wer = float(total_subtitutions + total_deletions + total_insertions) / float(total_hits + total_subtitutions + total_deletions)
+    total_kpi_mer = float(total_subtitutions + total_deletions + total_insertions) / float(total_hits + total_subtitutions + total_deletions + total_insertions)
+    total_kpi_wip = (float(total_hits) / total_length_truth) * (float(total_hits) / total_length_hypothesis) if total_length_hypothesis else 0
+    total_kpi_wil = 1 - total_kpi_wip
+
     deco_print("Validation WER:  {:.4f}".format(total_wer), offset=4)
     deco_print("Validation CER:  {:.4f}".format(total_cer), offset=4)
+
+    deco_print("Validation WER (jiwer):  {:.4f}".format(total_kpi_wer), offset=4)
+    deco_print("Validation MER (jiwer):  {:.4f}".format(total_kpi_mer), offset=4)
+    deco_print("Validation WIP (jiwer):  {:.4f}".format(total_kpi_wip), offset=4)
+    deco_print("Validation WIL (jiwer):  {:.4f}".format(total_kpi_wil), offset=4)
     return {
         "Eval WER": total_wer,
         "Eval CER": total_cer,
+
+        "Eval WER (jiwer)": total_kpi_wer,
+        "Eval MER (jiwer)": total_kpi_mer,
+        "Eval WIP (jiwer)": total_kpi_wip,
+        "Eval WIL (jiwer)": total_kpi_wil,
     }
 
   def evaluate(self, input_values, output_values):
     wordKpis = {"total_word_lev":0.0,"total_word_count" : 0.0}
     charKpis = {"total_char_lev":0.0,"total_char_count" : 0.0}
+    charEditKpis = {"total_hits":0.0,"total_substitutions":0.0,"total_deletions":0.0, "total_insertions":0.0, "total_length_truth":0.0, "total_length_hypothesis":0.0}
 
     decoded_sequence = output_values[0]
 
@@ -309,7 +342,17 @@ class Speech2Text(EncoderDecoderModel):
       charKpis["total_char_lev"] += levenshtein(true_text, pred_text)
       charKpis["total_char_count"] += len(true_text)
 
-    kpis = {"word": wordKpis, "char":charKpis}
+      #Base für WIL, MER and WIP, see https://github.com/jitsi/jiwer/blob/master/jiwer/measures.py
+      hits,substitutions,deletions,insertions,count_truth_words, count_hyp_words = _levenshtein_edit_counts(true_text,pred_text)
+      charEditKpis["total_hits"] +=hits
+      charEditKpis["total_substitutions"] +=substitutions
+      charEditKpis["total_deletions"] +=deletions
+      charEditKpis["total_insertions"] +=insertions
+      charEditKpis["total_length_truth"] +=count_truth_words
+      charEditKpis["total_length_hypothesis"] +=count_hyp_words
+
+
+    kpis = {"word": wordKpis, "char":charKpis, "edits":charEditKpis}
     return kpis
 
   def infer(self, input_values, output_values):

@@ -12,3 +12,4 @@ sentencepiece==0.1.83
 sacrebleu==1.3.7
 h5py==2.9.0
 tqdm==4.32.2
+jiwer==2.1.0

@@ -11,6 +11,7 @@ import numpy.testing as npt
 import pandas as pd
 import tensorflow as tf
 from six.moves import range
+
 from open_seq2seq.utils import train, evaluate, infer
 from open_seq2seq.utils.utils import get_available_gpus
 from .speech2text import levenshtein
@@ -280,6 +281,7 @@ class Speech2TextModelTests(tf.test.TestCase):
         ['a b c\' asdf', 'blah blah bblah'],
         ['this is great day', 'london capital gret britain'],
         ['aaaaaaaasdfdasdf', 'df d sdf asd fd f sdf df blah\' blah'],
+        ['bern is the capital of switzerland', 'switzerland has mountains'],
     ]
     outputs = [
         ['this is great a day', 'london capital gret britain'],
@@ -287,6 +289,7 @@ class Speech2TextModelTests(tf.test.TestCase):
         ['aaaaaaaasdfdasdf', 'df d sdf asd fd f sdf df blah blah'],
         ['this is a great day', 'london is the capital of great britain'],
         ['a b c\' asdf', 'blah blah\' bblah'],
+        ['bern s the capital of switz', 'switzerla ha mauntains'],
     ]
     y = [None] * len(inputs)
     len_y = [None] * len(inputs)
@@ -346,6 +349,12 @@ class Speech2TextModelTests(tf.test.TestCase):
     w_len = 0.0
     c_lev = 0.0
     c_len = 0.0
+    h_sum = 0.0
+    s_sum = 0.0
+    d_sum = 0.0
+    i_sum = 0.0
+    total_len_truth = 0.0
+    total_len_hyp = 0.0
     for batch_id in range(len(inputs)):
       for sample_id in range(len(inputs[batch_id])):
         input_sample = inputs[batch_id][sample_id]
@@ -355,13 +364,41 @@ class Speech2TextModelTests(tf.test.TestCase):
         c_lev += levenshtein(input_sample, output_sample)
         c_len += len(input_sample)
 
+    for kpiDictionary in results:
+      editKpis = kpiDictionary["edits"]
+      h_sum +=editKpis["total_hits"]
+      s_sum +=editKpis["total_substitutions"]
+      d_sum +=editKpis["total_deletions"]
+      i_sum +=editKpis["total_insertions"]
+      total_len_truth +=editKpis["total_length_truth"]
+      total_len_hyp +=editKpis["total_length_hypothesis"]
+
+
+
     self.assertEqual(output_dict['Eval WER'], w_lev / w_len)
-    self.assertEqual(output_dict['Eval WER'], 37 / 40.0)
+    self.assertEqual(output_dict['Eval WER'], 42.0 / 49.0) # manually validated
+
+    self.assertEqual(output_dict['Eval WER'], output_dict['Eval WER (jiwer)'],"WER should be the same, no matter how computed")
+    self.assertIn("Eval WER (jiwer)", output_dict)
+    self.assertEqual(output_dict['Eval WER (jiwer)'], float(s_sum + d_sum + i_sum) / float(h_sum + s_sum + d_sum))
+
+    self.assertIn("Eval MER (jiwer)", output_dict)
+    self.assertEqual(output_dict['Eval MER (jiwer)'], float(s_sum + d_sum + i_sum) / float(h_sum + s_sum + d_sum + i_sum))
+
+    self.assertIn("Eval WIP (jiwer)", output_dict)
+    self.assertEqual(output_dict['Eval WIP (jiwer)'], (float(h_sum) / total_len_truth) * (float(h_sum) / total_len_hyp) if total_len_hyp else 0)
+    self.assertIn("Eval WIL (jiwer)", output_dict)
+    self.assertEqual(output_dict['Eval WIL (jiwer)'], 1-output_dict['Eval WIP (jiwer)'])
 
     self.assertEqual(output_dict['Eval CER'], c_lev / c_len)
 
+    #Testing on first input, which is:
+      #truth: 'this is a great day'
+      #hypothesis: 'this is great a day'
     inp_dict = {'source_tensors': [input_values[0][0], input_values[0][1]],
                 'target_tensors': [input_values[0][2], input_values[0][3]]}
     output_dict = model.maybe_print_logs(inp_dict, output_values[0], 0)
     self.assertEqual(output_dict['Sample WER'], 0.4)
     self.assertEqual(output_dict['Sample CER'], 4/19)
+
+    #TODO: calculate expexted outputs for sample WIL and WIP
