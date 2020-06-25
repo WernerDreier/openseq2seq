@@ -3,16 +3,17 @@
 from __future__ import absolute_import, division, print_function
 from __future__ import unicode_literals
 
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from six.moves import range
-import matplotlib as mpl
+
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 from io import BytesIO
 
-from open_seq2seq.utils.utils import deco_print, _levenshtein_edit_counts
+from open_seq2seq.utils.utils import deco_print, levenshtein_edit_counts, word_kpis_for_single_sentence
 from .encoder_decoder import EncoderDecoderModel
 
 import pickle
@@ -222,6 +223,8 @@ class Speech2Text(EncoderDecoderModel):
         len(true_text.split())
     sample_cer = levenshtein(true_text, pred_text) /  len(true_text)
 
+    sample_kpis = word_kpis_for_single_sentence(true_text, pred_text)
+
     self.autoregressive = self.get_data_layer().params.get('autoregressive', False)
     self.plot_attention = False  # (output_values[1] != None).all()
     if self.plot_attention:
@@ -232,17 +235,29 @@ class Speech2Text(EncoderDecoderModel):
     deco_print("Sample CER: {:.4f}".format(sample_cer), offset=4)
     deco_print("Sample target:     " + true_text, offset=4)
     deco_print("Sample prediction: " + pred_text, offset=4)
+    deco_print("-------------------: ", offset=4)
+    deco_print("Detailed KPIs: ", offset=4)
+    deco_print("Sample Word-Error-Rate (WER): {:.4f}".format(sample_kpis["wer"]), offset=8)
+    deco_print("Sample Match-Error-Rate (MER): {:.4f}".format(sample_kpis["mer"]), offset=8)
+    deco_print("Sample Word-Information-Lost (WIL): {:.4f}".format(sample_kpis["wil"]), offset=8)
+    deco_print("Sample Word-Information-Preserved (WIP): {:.4f}".format(sample_kpis["wip"]), offset=8)
 
     if self.plot_attention:
       return {
           'Sample WER': sample_wer,
           'Sample CER': sample_cer,
+          'Sample MER': sample_kpis["mer"],
+          'Sample WIL': sample_kpis["wil"],
+          'Sample WIP': sample_kpis["wip"],
           'Attention Summary': attention_summary,
       }
     else:
       return {
           'Sample WER': sample_wer,
           'Sample CER': sample_cer,
+          'Sample MER': sample_kpis["mer"],
+          'Sample WIL': sample_kpis["wil"],
+          'Sample WIP': sample_kpis["wip"],
       }
     
   def finalize_evaluation(self, results_per_batch, training_step=None):
@@ -343,7 +358,7 @@ class Speech2Text(EncoderDecoderModel):
       charKpis["total_char_count"] += len(true_text)
 
       #Base für WIL, MER and WIP, see https://github.com/jitsi/jiwer/blob/master/jiwer/measures.py
-      hits,substitutions,deletions,insertions,count_truth_words, count_hyp_words = _levenshtein_edit_counts(true_text,pred_text)
+      hits,substitutions,deletions,insertions,count_truth_words, count_hyp_words = levenshtein_edit_counts(true_text, pred_text)
       charEditKpis["total_hits"] +=hits
       charEditKpis["total_substitutions"] +=substitutions
       charEditKpis["total_deletions"] +=deletions

@@ -395,10 +395,13 @@ class Speech2TextModelTests(tf.test.TestCase):
     #Testing on first input, which is:
       #truth: 'this is a great day'
       #hypothesis: 'this is great a day'
+      #on word level here we have: H:3, S:2, D:0, I:0, len words truth: 5, len words hyp: 5
+
     inp_dict = {'source_tensors': [input_values[0][0], input_values[0][1]],
                 'target_tensors': [input_values[0][2], input_values[0][3]]}
     output_dict = model.maybe_print_logs(inp_dict, output_values[0], 0)
     self.assertEqual(output_dict['Sample WER'], 0.4)
     self.assertEqual(output_dict['Sample CER'], 4/19)
-
-    #TODO: calculate expexted outputs for sample WIL and WIP
+    self.assertEqual(output_dict['Sample WIP'], (3/5) * (3/5))
+    self.assertEqual(output_dict['Sample WIL'], 1 - output_dict['Sample WIP'])
+    self.assertEqual(output_dict['Sample MER'], (2+0+0)/(3+2+0+0))

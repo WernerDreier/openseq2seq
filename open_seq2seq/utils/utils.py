@@ -882,7 +882,7 @@ def create_model(args, base_config, config_module, base_model, hvd,
   return model
 
 
-def _levenshtein_edit_counts(truth,hypothesis):
+def levenshtein_edit_counts(truth,hypothesis):
 
   _default_transform = tr.Compose([tr.RemoveMultipleSpaces(), tr.Strip(), tr.SentencesToListOfWords(), tr.RemoveEmptyStrings(), ])
 
@@ -894,3 +894,24 @@ def _levenshtein_edit_counts(truth,hypothesis):
   count_words_truth = len(word_level_truth) if word_level_truth else 0
   count_words_hypothesis = len(word_level_hypothesis) if word_level_hypothesis else 0
   return H,S,D,I,count_words_truth, count_words_hypothesis
+
+def word_kpis_for_single_sentence(truth, hypothesis):
+  _default_transform = tr.Compose([tr.RemoveMultipleSpaces(), tr.Strip(), tr.SentencesToListOfWords(), tr.RemoveEmptyStrings(), ])
+  # Preprocess truth and hypothesis -> string to word level, see https://github.com/jitsi/jiwer/blob/master/jiwer/measures.py
+  word_level_truth, word_level_hypothesis = _preprocess(truth, hypothesis,  _default_transform , _default_transform  )
+  # Get the operation counts (#hits, #substitutions, #deletions, #insertions)
+  H,S,D,I = _get_operation_counts(word_level_truth, word_level_hypothesis)
+  # Compute Word Error Rate
+  wer = float(S + D + I) / float(H + S + D)
+  # Compute Match Error Rate
+  mer = float(S + D + I) / float(H + S + D + I)
+  # Compute Word Information Preserved
+  wip = (float(H) / len(word_level_truth)) * (float(H) / len(word_level_hypothesis)) if word_level_hypothesis else 0
+  # Compute Word Information Lost
+  wil = 1 - wip
+  return {
+    "wer": wer,
+    "mer": mer,
+    "wil": wil,
+    "wip": wip,
+  }
