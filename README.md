@@ -14,7 +14,7 @@ https://nvidia.github.io/OpenSeq2Seq/
 
 ## Acknowledgments
 [NVIDIA Openseq2seq](https://github.com/NVIDIA/OpenSeq2Seq)
-[Pytorch Fairseq] (https://github.com/pytorch/fairseq/blob/master/examples/wav2vec/README.md)
+[Pytorch Fairseq](https://github.com/pytorch/fairseq/blob/master/examples/wav2vec/README.md)
 
 ## Usage
 - Use Fairseq Library to train a wav2vec model
